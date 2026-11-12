@@ -393,7 +393,9 @@
       if (ind === 'lhfa' && cur.a.age >= 731) cmp = 'Taller than about ';
       var share = Math.max(1, Math.min(99, Math.round(zc.pct)));
       var zo = zOf(cur, otherStd(std), ind);
-      parts.push(fmtV(ind, cur.a.v[ind]) + ' on ' + fmtDate(cur.m.date, 'auto') + '. ' + cmp + share + ' of every 100 ' + P.kids + ' ' + P.his + ' age (' + stdName(std) + (zo ? '; ' + stdName(otherStd(std)) + ' says ' + G.pctText(zo.pct) : '') + ').');
+      var srcTxt = '(' + stdName(std) + (zo ? '; ' + stdName(otherStd(std)) + ' says ' + G.pctText(zo.pct) : '') + ')';
+      if (zc.pct >= 1 && zc.pct <= 99) parts.push(fmtV(ind, cur.a.v[ind]) + ' on ' + fmtDate(cur.m.date, 'auto') + '. ' + cmp + share + ' of every 100 ' + P.kids + ' ' + P.his + ' age ' + srcTxt + '.');
+      else parts.push(fmtV(ind, cur.a.v[ind]) + ' on ' + fmtDate(cur.m.date, 'auto') + ', ' + pctPhrase(zc.pct) + ' for ' + P.kids + ' ' + P.his + ' age ' + srcTxt + '.');
       // change since previous
       var withV = rows.filter(function (r) { return r.a.v[ind] > 0 && !r.a.beforeTerm; });
       var prev = null;
@@ -412,7 +414,7 @@
             var s = 'Since ' + fmtDate(prev.m.date, 'auto') + ': ' + deltaText(ind, dv) + ' in ' + days + ' days (' + rateText(ind, Math.abs(dv) / days, cur.a.chrono) + ')';
             if (exp != null) {
               if (Math.abs(dz) < 0.15) s += ', right on ' + P.his + ' curve.';
-              else s += '. Staying on ' + P.his + ' curve would have been ' + deltaText(ind, exp) + ', so ' + P.he + ' moved ' + (dz > 0 ? 'up' : 'down') + ' from the ' + G.pctText(zp.pct) + ' to the ' + G.pctText(zc.pct) + '.';
+              else { var p1 = pctPhrase(zp.pct), p2 = pctPhrase(zc.pct), dir = dz > 0 ? 'up' : 'down'; s += '. Staying on ' + P.his + ' curve would have been ' + deltaText(ind, exp) + ', so ' + P.he + (p1 === p2 ? ' moved slightly ' + dir + ' but is still ' + p2 + '.' : ' moved ' + dir + ' from ' + p1 + ' to ' + p2 + '.'); }
             } else s += '.';
             parts.push(s);
           }
@@ -430,13 +432,15 @@
           var n = G.linesBetween(zr.z, zc.z);
           if (n >= 2) {
             var down = zc.z < zr.z;
-            parts.push('Moved ' + (down ? 'down' : 'up') + ' from the ' + G.pctText(zr.pct) + ' to the ' + G.pctText(zc.pct) + ' since ' + fmtDate(ref.m.date, 'auto') + ', crossing ' + n + ' major percentile lines. Shifts are common in the first months, but ' + (down ? 'a steady drop' : 'a steady climb') + ' is worth bringing up at the next checkup.');
+            parts.push('Moved ' + (down ? 'down' : 'up') + ' from ' + pctPhrase(zr.pct) + ' to ' + pctPhrase(zc.pct) + ' since ' + fmtDate(ref.m.date, 'auto') + ', crossing ' + n + ' major percentile lines. Shifts are common in the first months' + (ind === 'lhfa' && !down ? '.' : ', but ' + (down ? 'a steady drop' : 'a steady climb') + ' is worth bringing up at the next checkup.'));
             if (!(ind === 'lhfa' && !down)) level = 'watch';
           }
         }
       }
       if (zc.z > 2 || zc.z < -2) {
-        parts.push((zc.z > 2 ? 'Above the 97.7th' : 'Below the 2.3rd') + ' percentile, outside the usual range. One reading can be off, so measure again or mention it at the next checkup.');
+        var streak = 0;
+        for (var q = withV.length - 1; q >= 0; q--) { var zq = zOf(withV[q], stdFor(ind, withV[q].a.age), ind); if (zq && (zc.z > 2 ? zq.z > 2 : zq.z < -2)) streak++; else break; }
+        parts.push(streak >= 2 ? 'The last ' + streak + ' readings are all ' + (zc.z > 2 ? 'above the 97.7th' : 'below the 2.3rd') + ' percentile, outside the usual range. Keep sharing them with your pediatrician.' : (zc.z > 2 ? 'Above the 97.7th' : 'Below the 2.3rd') + ' percentile, outside the usual range. One reading can be off, so measure again or mention it at the next checkup.');
         level = 'watch';
       }
       out.push({ ind: ind, level: level, title: label + ': ' + G.pctText(zc.pct) + ' percentile', text: parts.join(' ') });
@@ -650,6 +654,10 @@
     view.appendChild(h('p', { class: 'disclaimer', text: 'For tracking at home. It does not replace your pediatrician, who looks at the whole picture.' }));
   }
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function pctPhrase(p) {
+    var t = G.pctText(p);
+    return /^(below|above) /.test(t) ? t.slice(0, 6) + 'the ' + t.slice(6) + ' percentile' : 'the ' + t + ' percentile';
+  }
   // Rounded values for predictions (no false precision)
   function roughV(ind, v) {
     if (ind === 'wfa') {
